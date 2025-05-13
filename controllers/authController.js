@@ -10,6 +10,7 @@ const {
 const ErrorResponse = require('../utils/errorResponse');
 const path = require('path');
 const fs = require('fs');
+const validator = require('validator');
 
 // @desc    Register user
 // @route   POST /api/user/register
@@ -407,7 +408,7 @@ exports.inviteColleague = async (req, res, next) => {
   try {
     const { email } = req.body;
     const invitingUser = req.user;
-    
+
     // Validate email
     if (!validator.isEmail(email)) {
       return res.status(400).json({
@@ -415,21 +416,24 @@ exports.inviteColleague = async (req, res, next) => {
         message: 'Please provide a valid email',
       });
     }
-    
+
     // Check if user already exists
     const existingUser = await User.findOne({ email });
-    
+
     if (existingUser) {
       return res.status(400).json({
         success: false,
         message: 'User already exists',
       });
     }
-    
+
+    // Generate random password
+    const generatedPassword = Math.random().toString(36).slice(-8);
+
     // Create guest user
     const guestUser = await User.create({
       email,
-      password: Math.random().toString(36).slice(-8), // Random password
+      password: generatedPassword,
       role: 'guest',
       status: 'pending',
       companyName: invitingUser.companyName,
@@ -437,17 +441,18 @@ exports.inviteColleague = async (req, res, next) => {
       companyAddress: invitingUser.companyAddress,
       isSelfEmployed: false,
     });
-    
+
     // Generate verification code
     const verificationCode = generateVerificationCode();
     guestUser.verificationCode = verificationCode;
     await guestUser.save();
-    
-    // In a real app, you would send an email with the invitation here
+
+    // Respond with email and generated password
     res.status(201).json({
       success: true,
       data: {
         email: guestUser.email,
+        password: generatedPassword, // Aquí va la contraseña generada
         message: 'Invitation sent. In a real app, this would be sent via email.',
       },
     });
